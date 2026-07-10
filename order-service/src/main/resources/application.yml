@@ -1,0 +1,67 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: order-service
+
+inventory:
+  base-url: ${INVENTORY_SERVICE_URL:http://localhost:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers,circuitbreakerevents,retries,retryevents,ratelimiters,ratelimiterevents,bulkheads,bulkheadevents,timelimiters,timelimiterevents
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+    ratelimiters:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      inventoryService:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - java.lang.Exception
+
+  retry:
+    instances:
+      inventoryService:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.lang.Exception
+
+  ratelimiter:
+    instances:
+      inventoryService:
+        limitForPeriod: 3
+        limitRefreshPeriod: 10s
+        timeoutDuration: 0s
+
+  bulkhead:
+    instances:
+      inventoryService:
+        maxConcurrentCalls: 2
+        maxWaitDuration: 0s
+
+  timelimiter:
+    instances:
+      inventoryService:
+        timeoutDuration: 2s
+        cancelRunningFuture: true

@@ -1,0 +1,4 @@
+rootProject.name = 'resiliency-check'
+
+include 'inventory-service'
+include 'order-service'
