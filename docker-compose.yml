@@ -11,8 +11,30 @@ services:
       context: .
       dockerfile: order-service/Dockerfile
     ports:
-      - "8080:8080"
+      - "8082:8080"
     environment:
       - INVENTORY_SERVICE_URL=http://inventory-service:8081
     depends_on:
       - inventory-service
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - order-service
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/resilience4j.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus

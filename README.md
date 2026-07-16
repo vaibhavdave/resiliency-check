@@ -24,6 +24,7 @@ patterns in Spring Boot 3.5, built around two independently-runnable services:
 - `resilience4j-spring-boot3` 2.3.0 (Circuit Breaker, Retry, Rate Limiter, Bulkhead, Time Limiter)
 - Spring Boot Actuator with Resilience4j health indicators and metrics
 - Micrometer + Prometheus registry for metrics export
+- Prometheus + Grafana for live metrics visualisation (via Docker Compose)
 
 ## Running locally
 
@@ -37,11 +38,20 @@ Requires JDK 21. From the repo root:
 ./gradlew :order-service:bootRun
 ```
 
-Or with Docker Compose (builds both images and wires them together):
+Or with Docker Compose (builds both images and wires them together, including Prometheus and Grafana):
 
 ```bash
 docker compose up --build
 ```
+
+| Service | Local URL |
+|---|---|
+| order-service | `http://localhost:8082` |
+| inventory-service | `http://localhost:8081` |
+| Prometheus | `http://localhost:9091` |
+| Grafana | `http://localhost:3001` (admin / admin) |
+
+> Port 8082 (not 8080) is used for order-service in Docker Compose to avoid conflicts with other local services.
 
 Run all tests (each Resilience4j pattern has an integration test that proves it actually
 triggers, using an in-process mock HTTP server standing in for inventory-service):
@@ -89,6 +99,7 @@ Observability:
 ## Triggering each pattern
 
 All examples assume both services are running locally (`localhost:8081` / `localhost:8080`).
+When using Docker Compose replace `localhost:8080` with `localhost:8082`.
 
 ### Circuit Breaker
 
@@ -165,20 +176,74 @@ curl -X POST localhost:8081/admin/mode -H 'Content-Type: application/json' \
   -d '{"mode":"OK","delayMs":0,"errorRate":0}'   # reset
 ```
 
+## Monitoring (Prometheus + Grafana)
+
+Docker Compose starts Prometheus and Grafana alongside the two services.
+
+**Prometheus** scrapes `order-service` every 5 seconds at `/actuator/prometheus` and stores
+the raw time-series data. **Grafana** connects to Prometheus and renders that data as graphs.
+
+```
+order-service /actuator/prometheus
+        ▲  (scraped every 5s)
+        │
+   Prometheus  ◀── PromQL queries ── Grafana (http://localhost:3001)
+   (stores data)                     (draws graphs)
+```
+
+A pre-built **Resilience4j dashboard** is provisioned automatically. It shows:
+
+| Panel | Metric |
+|---|---|
+| Circuit Breaker state | CLOSED / OPEN / HALF_OPEN over time |
+| Circuit Breaker failure rate % | Percentage of calls that failed |
+| Circuit Breaker call outcomes | successful / failed / not-permitted (rate/5s) |
+| Retry call outcomes | successful / failed_with_retry / failed_without_retry (rate/5s) |
+| Bulkhead available slots | Free concurrent call slots remaining |
+| Rate Limiter available permits | Permits left in the current window |
+| Stat tiles | Current CB state, total retried calls, bulkhead rejections, rate limiter rejections |
+
+To generate traffic and watch the graphs update live:
+
+```bash
+# Trip the circuit breaker
+curl -X POST localhost:8081/admin/mode -H 'Content-Type: application/json' \
+  -d '{"mode":"ERROR","delayMs":0,"errorRate":0}'
+for i in $(seq 1 6); do curl -s localhost:8082/orders/products/1/circuit-breaker; echo; done
+
+# Exhaust the rate limiter (first 3 succeed, rest are rejected)
+for i in $(seq 1 5); do curl -s localhost:8082/orders/products/1/rate-limiter; echo; done
+
+# Trigger time limiter (response delayed beyond 2s timeout)
+curl -X POST localhost:8081/admin/mode -H 'Content-Type: application/json' \
+  -d '{"mode":"DELAY","delayMs":3000,"errorRate":0}'
+curl -s localhost:8082/orders/products/1/time-limiter; echo
+
+# Reset inventory to normal
+curl -X POST localhost:8081/admin/mode -H 'Content-Type: application/json' \
+  -d '{"mode":"OK","delayMs":0,"errorRate":0}'
+```
+
 ## Project layout
 
 ```
 resiliency-check/
 ├── build.gradle              # shared plugin/config for both modules
 ├── settings.gradle
-├── docker-compose.yml
+├── docker-compose.yml        # all 4 services: inventory, order, prometheus, grafana
+├── monitoring/
+│   ├── prometheus.yml        # scrape config (order-service every 5s)
+│   └── grafana/
+│       ├── provisioning/     # auto-wires Prometheus datasource + dashboard
+│       └── dashboards/       # resilience4j.json — pre-built Grafana dashboard
 ├── inventory-service/        # flaky downstream
 │   ├── Dockerfile
 │   └── src/main/java/com/example/resiliency/inventory/
-└── order-service/            # Resilience4j demo
-    ├── Dockerfile
-    └── src/main/java/com/example/resiliency/order/
-        ├── client/InventoryClient.java   # one method per pattern
-        ├── config/InventoryClientConfig.java
-        └── controller/OrderController.java
+├── order-service/            # Resilience4j demo
+│   ├── Dockerfile
+│   └── src/main/java/com/example/resiliency/order/
+│       ├── client/InventoryClient.java   # one method per pattern
+│       ├── config/InventoryClientConfig.java
+│       └── controller/OrderController.java
+└── QA.md                     # step-by-step explanation of every test class
 ```

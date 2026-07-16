@@ -1,0 +1,160 @@
+{
+  "title": "Resilience4j — order-service",
+  "uid": "resilience4j-demo",
+  "schemaVersion": 38,
+  "refresh": "5s",
+  "time": { "from": "now-5m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Circuit Breaker — State (0=CLOSED 1=OPEN 2=HALF_OPEN)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state{name=\"inventoryService\"}",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 2,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "red",   "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Circuit Breaker — Failure Rate %",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_failure_rate{name=\"inventoryService\"}",
+          "legendFormat": "failure rate %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "red",   "value": 50 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Circuit Breaker — Call Outcomes (rate/5s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(resilience4j_circuitbreaker_calls_seconds_count{name=\"inventoryService\"}[5s])",
+          "legendFormat": "{{kind}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Retry — Call Outcomes (rate/5s)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(resilience4j_retry_calls_total{name=\"inventoryService\"}[5s])",
+          "legendFormat": "{{kind}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Bulkhead — Available Concurrent Slots",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "resilience4j_bulkhead_available_concurrent_calls{name=\"inventoryService\"}",
+          "legendFormat": "available slots"
+        }
+      ],
+      "fieldConfig": { "defaults": { "min": 0 } }
+    },
+    {
+      "id": 6,
+      "title": "Rate Limiter — Available Permissions",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "resilience4j_ratelimiter_available_permissions{name=\"inventoryService\"}",
+          "legendFormat": "available permits"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Circuit Breaker — State (current)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 18, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state{name=\"inventoryService\",state=\"closed\"}",
+          "legendFormat": "CLOSED"
+        },
+        {
+          "expr": "resilience4j_circuitbreaker_state{name=\"inventoryService\",state=\"open\"}",
+          "legendFormat": "OPEN"
+        },
+        {
+          "expr": "resilience4j_circuitbreaker_state{name=\"inventoryService\",state=\"half_open\"}",
+          "legendFormat": "HALF_OPEN"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Retry — Total Retried Calls",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 18, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(resilience4j_retry_calls_total{name=\"inventoryService\",kind=\"failed_with_retry\"})",
+          "legendFormat": "retried"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Bulkhead — Rejected Calls",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 18, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(resilience4j_bulkhead_calls_total{name=\"inventoryService\",kind=\"rejected\"})",
+          "legendFormat": "rejected"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Rate Limiter — Rejected Calls",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 18, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(resilience4j_ratelimiter_calls_total{name=\"inventoryService\",kind=\"failed_acquire\"})",
+          "legendFormat": "rejected"
+        }
+      ]
+    }
+  ]
+}
